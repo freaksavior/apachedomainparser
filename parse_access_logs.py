@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import re
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import argparse
 
@@ -12,6 +12,7 @@ def parse_args():
     parser.add_argument('--verboselog', action='store_true', help='Show verbose output for log file checks')
     parser.add_argument('--verboseall', action='store_true', help='Show all verbose outputs')
     parser.add_argument('--domain', type=str, help='Specify a domain to search for, or leave empty to search all domains')
+    parser.add_argument('--daterange', type=str, help='Specify a date range in format dd/mm/yyyy-dd/mm/yyyy (default is last 24 hours)')
     return parser.parse_args()
 
 # Parse command-line arguments
@@ -26,17 +27,19 @@ log_format = r'(?P<ip>\S+) \S+ \S+ \[(?P<time>[^\]]+)\] "(?P<request>[^"]+)" (?P
 # Dictionary to hold domain -> hourly -> IP -> request counts
 domain_stats = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
-# Prompt the user for a date range
-start_date_str = input("Enter the start date (dd/mm/yyyy): ")
-end_date_str = input("Enter the end date (dd/mm/yyyy): ")
-
-# Convert input strings to datetime objects for comparison
-try:
-    start_date = datetime.strptime(start_date_str, '%d/%m/%Y')
-    end_date = datetime.strptime(end_date_str, '%d/%m/%Y')
-except ValueError:
-    print("Invalid date format. Please use dd/mm/yyyy.")
-    exit(1)
+# Determine the date range
+if args.daterange:
+    try:
+        start_str, end_str = args.daterange.split('-')
+        start_date = datetime.strptime(start_str, '%d/%m/%Y')
+        end_date = datetime.strptime(end_str, '%d/%m/%Y')
+    except ValueError:
+        print("Invalid date range format. Please use dd/mm/yyyy-dd/mm/yyyy.")
+        exit(1)
+else:
+    # Default to the last 24 hours
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=1)
 
 # Step 1: Parse the domain list
 domains = {}
@@ -48,8 +51,6 @@ with open(user_domain_file, 'r') as file:
             domain_name = parts[0].split(":")[0]  # Extracts domain before ":"
             user = parts[0].split(":")[1].strip()  # Extracts and strips username after ":"
             domains[domain_name] = user
-            if args.verbosedomain or args.verboseall:
-                print(f"[INFO] Loaded domain '{domain_name}' for user '{user}'.")
 
 # Step 2: Parse logs for each domain/user
 for domain, user in domains.items():
@@ -61,7 +62,7 @@ for domain, user in domains.items():
 
     # Construct possible log file names
     log_path_non_ssl = os.path.join(log_directory.format(user=user), f"{domain}")
-    log_path_ssl = os.path.join(log_directory.format(user=user), f"{domain}-ssl-log")
+    log_path_ssl = os.path.join(log_directory.format(user=user), f"{domain}-ssl_log")  # Updated suffix
 
     # Try to open each log file (non-SSL and SSL versions)
     processed_logs = False
@@ -107,3 +108,7 @@ for domain, hourly_data in domain_stats.items():
         print(f"  Hour: {hour}")
         for ip, count in ip_data.items():
             print(f"    IP: {ip} - {count} requests")
+
+    if args.verbosedomain or args.verboseall:
+        print(f"[INFO] Loaded domain '{domain}' for user '{user}'.")
+
