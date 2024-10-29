@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -10,6 +11,7 @@ def parse_args():
     parser.add_argument('--verbosedomain', action='store_true', help='Show verbose output for domain checks')
     parser.add_argument('--verboselog', action='store_true', help='Show verbose output for log file checks')
     parser.add_argument('--verboseall', action='store_true', help='Show all verbose outputs')
+    parser.add_argument('--domain', type=str, help='Specify a domain to search for, or leave empty to search all domains')
     return parser.parse_args()
 
 # Parse command-line arguments
@@ -51,6 +53,9 @@ with open(user_domain_file, 'r') as file:
 
 # Step 2: Parse logs for each domain/user
 for domain, user in domains.items():
+    if args.domain and args.domain != domain:
+        continue  # Skip domains that don't match the specified one
+
     if args.verbosedomain or args.verboseall:
         print(f"\n[INFO] Checking logs for domain '{domain}' (User: '{user}')")
 
